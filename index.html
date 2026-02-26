@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>WebGazer Demo</title>
+
+  <!-- WebGazer -->
+  <script src="https://webgazer.cs.brown.edu/webgazer.js"></script>
+
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 24px; }
+    .row { display: flex; gap: 24px; margin-top: 24px; }
+    .card { flex: 1; border: 1px solid #ddd; border-radius: 12px; padding: 18px; min-height: 140px; }
+    button { padding: 10px 14px; border-radius: 10px; border: 1px solid #ccc; background: #fff; cursor: pointer; }
+    #status { margin-top: 12px; }
+    #log { margin-top: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; white-space: pre-wrap; }
+  </style>
+</head>
+
+<body>
+  <h1>WebGazer classroom demo</h1>
+
+  <p>
+    Click <b>Start</b>, allow webcam access, then look at Option A vs Option B.
+    You’ll see prediction points (red dots) if enabled.
+  </p>
+
+  <button id="startBtn">Start WebGazer</button>
+  <button id="stopBtn" disabled>Stop</button>
+  <button id="toggleDotsBtn" disabled>Toggle Dots</button>
+
+  <div id="status">Status: not started</div>
+
+  <div class="row">
+    <div class="card" id="A">
+      <h2>Option A</h2>
+      <div>70% chance of $10</div>
+      <div>30% chance of $0</div>
+    </div>
+
+    <div class="card" id="B">
+      <h2>Option B</h2>
+      <div>30% chance of $25</div>
+      <div>70% chance of $0</div>
+    </div>
+  </div>
+
+  <div id="log"></div>
+
+  <script>
+    const statusEl = document.getElementById("status");
+    const logEl = document.getElementById("log");
+    const startBtn = document.getElementById("startBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const toggleDotsBtn = document.getElementById("toggleDotsBtn");
+
+    const A = document.getElementById("A").getBoundingClientRect();
+    const B = document.getElementById("B").getBoundingClientRect();
+
+    let dotsOn = false;
+    let samplesA = 0;
+    let samplesB = 0;
+    let totalSamples = 0;
+
+    function inRect(x, y, r) {
+      return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+    }
+
+    function updateLog() {
+      const shareA = totalSamples ? (samplesA / totalSamples) : 0;
+      const shareB = totalSamples ? (samplesB / totalSamples) : 0;
+      logEl.textContent =
+        `Samples: ${totalSamples}\n` +
+        `On A: ${samplesA} (${(shareA*100).toFixed(1)}%)\n` +
+        `On B: ${samplesB} (${(shareB*100).toFixed(1)}%)\n`;
+    }
+
+    async function start() {
+      statusEl.textContent = "Status: starting… (allow webcam)";
+      samplesA = samplesB = totalSamples = 0;
+      updateLog();
+
+      // Optional visuals (helpful for debugging)
+      webgazer.showVideo(false);
+      webgazer.showFaceOverlay(false);
+      webgazer.showFaceFeedbackBox(false);
+
+      webgazer.setGazeListener((data, elapsedTime) => {
+        if (!data) return;
+
+        totalSamples += 1;
+
+        // data.x/data.y are in viewport coordinates
+        if (inRect(data.x, data.y, A)) samplesA += 1;
+        if (inRect(data.x, data.y, B)) samplesB += 1;
+
+        // Update occasionally to avoid spamming
+        if (totalSamples % 10 === 0) updateLog();
+      });
+
+      await webgazer.begin();
+
+      // Show prediction points (red dots) if you want
+      dotsOn = true;
+      webgazer.showPredictionPoints(dotsOn);
+
+      statusEl.textContent = "Status: running";
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+      toggleDotsBtn.disabled = false;
+    }
+
+    function stop() {
+      webgazer.end();
+      statusEl.textContent = "Status: stopped";
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      toggleDotsBtn.disabled = true;
+    }
+
+    function toggleDots() {
+      dotsOn = !dotsOn;
+      webgazer.showPredictionPoints(dotsOn);
+    }
+
+    startBtn.addEventListener("click", start);
+    stopBtn.addEventListener("click", stop);
+    toggleDotsBtn.addEventListener("click", toggleDots);
+  </script>
+</body>
+</html>
