@@ -2,131 +2,156 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>WebGazer Demo</title>
 
-  <!-- WebGazer -->
-  <script src="https://webgazer.cs.brown.edu/webgazer.js"></script>
-
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 24px; }
-    .row { display: flex; gap: 24px; margin-top: 24px; }
-    .card { flex: 1; border: 1px solid #ddd; border-radius: 12px; padding: 18px; min-height: 140px; }
-    button { padding: 10px 14px; border-radius: 10px; border: 1px solid #ccc; background: #fff; cursor: pointer; }
-    #status { margin-top: 12px; }
-    #log { margin-top: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; white-space: pre-wrap; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      margin: 40px;
+    }
+
+    h1 { margin-bottom: 10px; }
+
+    .row {
+      display: flex;
+      gap: 40px;
+      margin-top: 40px;
+    }
+
+    .card {
+      flex: 1;
+      border: 2px solid #ccc;
+      border-radius: 12px;
+      padding: 20px;
+      min-height: 150px;
+      font-size: 18px;
+    }
+
+    button {
+      padding: 10px 18px;
+      border-radius: 8px;
+      border: 1px solid #aaa;
+      background: white;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+
+    #status {
+      margin-top: 15px;
+      font-weight: 500;
+    }
+
+    #stats {
+      margin-top: 20px;
+      font-family: monospace;
+      white-space: pre-line;
+    }
   </style>
 </head>
 
 <body>
-  <h1>WebGazer classroom demo</h1>
 
-  <p>
-    Click <b>Start</b>, allow webcam access, then look at Option A vs Option B.
-    You’ll see prediction points (red dots) if enabled.
-  </p>
+<h1>WebGazer Classroom Demo</h1>
 
-  <button id="startBtn">Start WebGazer</button>
-  <button id="stopBtn" disabled>Stop</button>
-  <button id="toggleDotsBtn" disabled>Toggle Dots</button>
+<p>
+Click <b>Start</b>, allow webcam access, and look at the two options.
+Prediction dots will appear where WebGazer thinks you're looking.
+</p>
 
-  <div id="status">Status: not started</div>
+<button id="startBtn">Start</button>
+<button id="stopBtn" disabled>Stop</button>
 
-  <div class="row">
-    <div class="card" id="A">
-      <h2>Option A</h2>
-      <div>70% chance of $10</div>
-      <div>30% chance of $0</div>
-    </div>
+<div id="status">Status: not started</div>
 
-    <div class="card" id="B">
-      <h2>Option B</h2>
-      <div>30% chance of $25</div>
-      <div>70% chance of $0</div>
-    </div>
+<div class="row">
+  <div class="card" id="A">
+    <h2>Option A</h2>
+    70% chance of $10<br>
+    30% chance of $0
   </div>
 
-  <div id="log"></div>
+  <div class="card" id="B">
+    <h2>Option B</h2>
+    30% chance of $25<br>
+    70% chance of $0
+  </div>
+</div>
 
-  <script>
-    const statusEl = document.getElementById("status");
-    const logEl = document.getElementById("log");
-    const startBtn = document.getElementById("startBtn");
-    const stopBtn = document.getElementById("stopBtn");
-    const toggleDotsBtn = document.getElementById("toggleDotsBtn");
+<div id="stats"></div>
 
-    const A = document.getElementById("A").getBoundingClientRect();
-    const B = document.getElementById("B").getBoundingClientRect();
+<!-- ✅ WebGazer CDN (NO mediapipe / NO face mesh) -->
+<script src="https://cdn.jsdelivr.net/npm/webgazer@3.5.3/dist/webgazer.min.js"></script>
 
-    let dotsOn = false;
-    let samplesA = 0;
-    let samplesB = 0;
-    let totalSamples = 0;
+<script>
+  const statusEl = document.getElementById("status");
+  const statsEl = document.getElementById("stats");
+  const startBtn = document.getElementById("startBtn");
+  const stopBtn = document.getElementById("stopBtn");
 
-    function inRect(x, y, r) {
-      return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
-    }
+  let total = 0;
+  let countA = 0;
+  let countB = 0;
+  let started = false;
 
-    function updateLog() {
-      const shareA = totalSamples ? (samplesA / totalSamples) : 0;
-      const shareB = totalSamples ? (samplesB / totalSamples) : 0;
-      logEl.textContent =
-        `Samples: ${totalSamples}\n` +
-        `On A: ${samplesA} (${(shareA*100).toFixed(1)}%)\n` +
-        `On B: ${samplesB} (${(shareB*100).toFixed(1)}%)\n`;
-    }
+  function inRect(x, y, rect) {
+    return x >= rect.left && x <= rect.right &&
+           y >= rect.top && y <= rect.bottom;
+  }
 
-    async function start() {
-      statusEl.textContent = "Status: starting… (allow webcam)";
-      samplesA = samplesB = totalSamples = 0;
-      updateLog();
+  function updateStats() {
+    if (total === 0) return;
 
-      // Optional visuals (helpful for debugging)
-      webgazer.showVideo(false);
-      webgazer.showFaceOverlay(false);
-      webgazer.showFaceFeedbackBox(false);
+    let shareA = (countA / total * 100).toFixed(1);
+    let shareB = (countB / total * 100).toFixed(1);
 
-      webgazer.setGazeListener((data, elapsedTime) => {
-        if (!data) return;
+    statsEl.textContent =
+      `Total Samples: ${total}\n` +
+      `On A: ${countA} (${shareA}%)\n` +
+      `On B: ${countB} (${shareB}%)`;
+  }
 
-        totalSamples += 1;
+  function start() {
+    statusEl.textContent = "Starting… allow webcam";
+    total = countA = countB = 0;
+    updateStats();
 
-        // data.x/data.y are in viewport coordinates
-        if (inRect(data.x, data.y, A)) samplesA += 1;
-        if (inRect(data.x, data.y, B)) samplesB += 1;
+    const rectA = document.getElementById("A").getBoundingClientRect();
+    const rectB = document.getElementById("B").getBoundingClientRect();
 
-        // Update occasionally to avoid spamming
-        if (totalSamples % 10 === 0) updateLog();
-      });
+    webgazer.setGazeListener(function(data) {
+      if (!data) return;
 
-      await webgazer.begin();
+      if (!started) {
+        started = true;
+        statusEl.textContent = "Running (receiving gaze data)";
+      }
 
-      // Show prediction points (red dots) if you want
-      dotsOn = true;
-      webgazer.showPredictionPoints(dotsOn);
+      total++;
 
-      statusEl.textContent = "Status: running";
-      startBtn.disabled = true;
-      stopBtn.disabled = false;
-      toggleDotsBtn.disabled = false;
-    }
+      if (inRect(data.x, data.y, rectA)) countA++;
+      if (inRect(data.x, data.y, rectB)) countB++;
 
-    function stop() {
-      webgazer.end();
-      statusEl.textContent = "Status: stopped";
-      startBtn.disabled = false;
-      stopBtn.disabled = true;
-      toggleDotsBtn.disabled = true;
-    }
+      if (total % 15 === 0) updateStats();
+    }).begin();
 
-    function toggleDots() {
-      dotsOn = !dotsOn;
-      webgazer.showPredictionPoints(dotsOn);
-    }
+    webgazer.showPredictionPoints(true);
 
-    startBtn.addEventListener("click", start);
-    stopBtn.addEventListener("click", stop);
-    toggleDotsBtn.addEventListener("click", toggleDots);
-  </script>
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+  }
+
+  function stop() {
+    webgazer.end();
+    statusEl.textContent = "Stopped";
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    started = false;
+  }
+
+  startBtn.addEventListener("click", start);
+  stopBtn.addEventListener("click", stop);
+</script>
+
 </body>
 </html>
