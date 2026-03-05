@@ -119,21 +119,26 @@ Prediction dots will appear where WebGazer thinks you're looking.
     const rectA = document.getElementById("A").getBoundingClientRect();
     const rectB = document.getElementById("B").getBoundingClientRect();
 
-    webgazer.setGazeListener(function(data) {
-      if (!data) return;
+   let sawData = false;
 
-      if (!started) {
-        started = true;
-        statusEl.textContent = "Running (receiving gaze data)";
-      }
+webgazer.setGazeListener(function(data) {
+  if (!data) return;
 
-      total++;
+  // First time we get gaze data
+  if (!sawData) {
+    sawData = true;
+    statusEl.textContent = "Running (getting gaze data)";
+    console.log("FIRST GAZE:", data.x, data.y);
+  }
 
-      if (inRect(data.x, data.y, rectA)) countA++;
-      if (inRect(data.x, data.y, rectB)) countB++;
+  total++;
 
-      if (total % 15 === 0) updateStats();
-    }).begin();
+  if (inRect(data.x, data.y, rectA)) countA++;
+  if (inRect(data.x, data.y, rectB)) countB++;
+
+  if (total % 15 === 0) updateStats();
+
+}).begin();
 
     webgazer.showPredictionPoints(true);
 
