@@ -81,7 +81,7 @@ Prediction dots will appear where WebGazer thinks you're looking.
 <div id="stats"></div>
 
 <!-- ✅ WebGazer CDN (NO mediapipe / NO face mesh) -->
-<script src="https://cdn.jsdelivr.net/npm/webgazer@3.5.3/dist/webgazer.min.js"></script>
+<script src="https://webgazer.cs.brown.edu/webgazer.js"></script>
 
 <script>
   const statusEl = document.getElementById("status");
@@ -119,28 +119,18 @@ Prediction dots will appear where WebGazer thinks you're looking.
     const rectA = document.getElementById("A").getBoundingClientRect();
     const rectB = document.getElementById("B").getBoundingClientRect();
 
+    webgazer.setRegression('ridge');
+    webgazer.applyKalmanFilter(true);
+
    let sawData = false;
 
 webgazer.setGazeListener(function(data) {
   if (!data) return;
-
-  // First time we get gaze data
-  if (!sawData) {
-    sawData = true;
-    statusEl.textContent = "Running (getting gaze data)";
-    console.log("FIRST GAZE:", data.x, data.y);
-  }
-
-  total++;
-
-  if (inRect(data.x, data.y, rectA)) countA++;
-  if (inRect(data.x, data.y, rectB)) countB++;
-
-  if (total % 15 === 0) updateStats();
-
+  // ...
 }).begin();
 
-    webgazer.showPredictionPoints(true);
+webgazer.showPredictionPoints(true);
+
 
     startBtn.disabled = true;
     stopBtn.disabled = false;
