@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lottery Choice Eye Tracking</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      background: #1a1a2e;
+      color: #eee;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .screen { display: none; width: 100%; max-width: 860px; padding: 40px 24px; }
+    .screen.active { display: block; }
+
+    /* ── WELCOME ── */
+    .welcome-title { font-size: 36px; font-weight: 300; text-align: center; margin-bottom: 12px; }
+    .welcome-title span { color: #e8f54e; }
+    .welcome-sub { text-align: center; color: #888; font-size: 15px; margin-bottom: 32px; line-height: 1.7; }
+    .info-row { display: flex; gap: 16px; justify-content: center; margin-bottom: 32px; }
+    .info-card { background: #252540; border: 1px solid #333; border-radius: 8px; padding: 16px 24px; text-align: center; }
+    .info-card .n { font-size: 28px; font-weight: 700; color: #e8f54e; display: block; }
+    .info-card .l { font-size: 12px; color: #888; margin-top: 2px; }
+
+    /* ── CALIBRATION ── */
+    .calib-title { font-size: 22px; font-weight: 300; text-align: center; margin-bottom: 8px; }
+    .calib-sub { text-align: center; color: #888; font-size: 14px; margin-bottom: 20px; line-height: 1.6; max-width: 500px; margin-left: auto; margin-right: auto; }
+    #calib-area {
+      position: relative; width: 100%; height: 380px;
+      background: #252540; border: 1px solid #333; border-radius: 8px; margin-bottom: 16px;
+    }
+    .cdot {
+      position: absolute; width: 18px; height: 18px; border-radius: 50%;
+      background: #333; border: 2px solid #666; cursor: crosshair;
+      transform: translate(-50%, -50%); transition: all 0.2s;
+    }
+    .cdot:hover { transform: translate(-50%,-50%) scale(1.4); }
+    .cdot.done { background: #e8f54e; border-color: #e8f54e; }
+    #calib-progress { text-align: center; color: #888; font-size: 13px; margin-bottom: 16px; font-family: monospace; }
+    #calib-progress span { color: #e8f54e; }
+
+    /* ── FIXATION ── */
+    #screen-fixation { text-align: center; padding-top: 200px; }
+    .fixation { font-size: 52px; color: #555; animation: pulse 0.6s ease-in-out infinite alternate; }
+    @keyframes pulse { from { opacity: 0.3; } to { opacity: 1; } }
+
+    /* ── TRIAL ── */
+    .trial-header { text-align: center; font-family: monospace; font-size: 13px; color: #666; margin-bottom: 20px; }
+    .trial-header span { color: #e8f54e; }
+    .cards-row { display: flex; gap: 40px; justify-content: center; align-items: stretch; }
+    .lottery-card {
+      width: 260px; background: #252540; border: 2px solid #333;
+      border-radius: 10px; overflow: hidden; cursor: pointer;
+      transition: border-color 0.15s, transform 0.1s;
+    }
+    .lottery-card:hover { border-color: #e8f54e; transform: translateY(-3px); }
+    .lottery-card:active { transform: translateY(0); }
+    .card-label { background: #1a1a2e; color: #666; font-size: 10px; letter-spacing: 3px; text-transform: uppercase; padding: 8px 14px; border-bottom: 1px solid #333; }
+    .card-body { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+
+    .aoi-prob { background: #0f1f1c; border: 1px solid #1e3330; border-radius: 6px; padding: 14px; }
+    .aoi-prob .tag { font-size: 9px; letter-spacing: 2px; color: #3ecfb2; text-transform: uppercase; margin-bottom: 4px; }
+    .aoi-prob .val { font-size: 34px; font-weight: 700; color: #3ecfb2; line-height: 1; }
+    .aoi-prob .sub { font-size: 11px; color: #555; font-style: italic; margin-top: 3px; }
+
+    .aoi-outcome { background: #1c1b0e; border: 1px solid #2a2710; border-radius: 6px; padding: 14px; }
+    .aoi-outcome .tag { font-size: 9px; letter-spacing: 2px; color: #e8a020; text-transform: uppercase; margin-bottom: 4px; }
+    .aoi-outcome .val { font-size: 34px; font-weight: 700; color: #e8a020; line-height: 1; }
+    .aoi-outcome .sub { font-size: 11px; color: #555; font-style: italic; margin-top: 3px; }
+
+    .vs-col { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #333; font-weight: 700; font-size: 14px; flex-shrink: 0; }
+    .vs-line { width: 1px; height: 50px; background: #333; }
+    .trial-inst { text-align: center; color: #555; font-style: italic; font-size: 14px; margin-top: 16px; }
+
+    /* ── RESULTS ── */
+    .results-title { font-size: 28px; font-weight: 300; text-align: center; margin-bottom: 8px; }
+    .results-sub { text-align: center; color: #888; font-size: 14px; margin-bottom: 28px; }
+    .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+    .rcard { background: #252540; border: 1px solid #333; border-radius: 8px; padding: 18px; }
+    .rcard h3 { font-size: 10px; letter-spacing: 2px; color: #555; text-transform: uppercase; margin-bottom: 14px; }
+    .stat-row { display: flex; justify-content: space-between; font-size: 13px; padding: 7px 0; border-bottom: 1px solid #1e1e30; }
+    .stat-row:last-child { border-bottom: none; }
+    .stat-lbl { color: #666; }
+    .stat-val { font-family: monospace; font-weight: 600; }
+    .bar-labels { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 5px; }
+    .att-bar { height: 10px; background: #333; border-radius: 5px; overflow: hidden; display: flex; }
+    .fill-prob { background: #3ecfb2; transition: width 1s; }
+    .fill-out  { background: #e8a020; transition: width 1s; }
+    .trial-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .trial-table th { font-family: monospace; font-size: 9px; letter-spacing: 1px; color: #555; text-transform: uppercase; padding: 6px 10px; border-bottom: 1px solid #333; text-align: left; }
+    .trial-table td { padding: 8px 10px; border-bottom: 1px solid #1e1e30; color: #ccc; }
+    .trial-table tr:last-child td { border-bottom: none; }
+    .pill { display: inline-block; font-family: monospace; font-size: 10px; padding: 2px 7px; border-radius: 3px; }
+    .pill-a { background: #1a2e1a; color: #3ecfb2; border: 1px solid #1e3330; }
+    .pill-b { background: #2e2a1a; color: #e8a020; border: 1px solid #2a2710; }
+    .results-actions { display: flex; gap: 12px; justify-content: center; margin-top: 20px; }
+
+    /* ── BUTTONS ── */
+    .btn { font-family: monospace; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; padding: 12px 30px; border: none; border-radius: 4px; cursor: pointer; transition: all 0.15s; }
+    .btn-primary { background: #e8f54e; color: #1a1a2e; font-weight: 700; }
+    .btn-primary:hover { background: #d4e040; }
+    .btn-primary:disabled { opacity: 0.35; cursor: default; }
+    .btn-ghost { background: transparent; color: #666; border: 1px solid #333; }
+    .btn-ghost:hover { border-color: #eee; color: #eee; }
+
+    /* ── WebGazer overrides ── */
+    #webgazerVideoFeed, #webgazerVideoContainer { opacity: 0.15 !important; top: 8px !important; left: 8px !important; width: 160px !important; height: 120px !important; }
+    #webgazerFaceFeedbackBox { display: none !important; }
+  </style>
+</head>
+<body>
+
+<!-- ─── WELCOME ─── -->
+<div id="screen-welcome" class="screen active">
+  <h1 class="welcome-title">Where do you look before you <span>decide</span>?</h1>
+  <p class="welcome-sub">
+    This experiment tracks your eye movements using your webcam while you choose between lotteries.<br>
+    We measure whether you look more at <strong style="color:#3ecfb2">probabilities</strong> or <strong style="color:#e8a020">outcomes</strong>.
+  </p>
+  <div class="info-row">
+    <div class="info-card"><span class="n">12</span><span class="l">Trials</span></div>
+    <div class="info-card"><span class="n">~5</span><span class="l">Minutes</span></div>
+    <div class="info-card"><span class="n">0</span><span class="l">Data uploaded</span></div>
+  </div>
+  <div style="text-align:center">
+    <button class="btn btn-primary" onclick="startCalibration()">Begin Experiment →</button>
+  </div>
+</div>
+
+<!-- ─── CALIBRATION ─── -->
+<div id="screen-calib" class="screen">
+  <h2 class="calib-title">Calibration</h2>
+  <p class="calib-sub"><strong>Look directly at each dot first</strong>, then click it 3 times without moving your eyes. The number on each dot shows clicks remaining. Complete all 9 dots to continue.</p>
+  <div id="calib-area"></div>
+  <div id="calib-progress">Dots completed: <span id="calib-count">0</span> / 9 &nbsp;·&nbsp; <span style="color:#888;font-size:11px">Look at dot → click 3 times → move to next</span></div>
+  <div style="text-align:center">
+    <button id="btn-start" class="btn btn-primary" onclick="beginTrials()" disabled>Start Trials →</button>
+  </div>
+</div>
+
+<!-- ─── FIXATION ─── -->
+<div id="screen-fixation" class="screen">
+  <div class="fixation">+</div>
+</div>
+
+<!-- ─── TRIAL ─── -->
+<div id="screen-trial" class="screen">
+  <div class="trial-header">Trial <span id="trial-num">1</span> of 12</div>
+  <div class="cards-row">
+    <div class="lottery-card" id="card-A" onclick="recordChoice('A')">
+      <div class="card-label">Option A</div>
+      <div class="card-body">
+        <div class="aoi-prob" id="aoi-prob-A">
+          <div class="tag">Probability</div>
+          <div class="val" id="val-pA">50%</div>
+          <div class="sub">chance of winning</div>
+        </div>
+        <div class="aoi-outcome" id="aoi-out-A">
+          <div class="tag">Outcome</div>
+          <div class="val" id="val-oA">$10</div>
+          <div class="sub">if you win</div>
+        </div>
+      </div>
+    </div>
+    <div class="vs-col">
+      <div class="vs-line"></div>VS<div class="vs-line"></div>
+    </div>
+    <div class="lottery-card" id="card-B" onclick="recordChoice('B')">
+      <div class="card-label">Option B</div>
+      <div class="card-body">
+        <div class="aoi-prob" id="aoi-prob-B">
+          <div class="tag">Probability</div>
+          <div class="val" id="val-pB">100%</div>
+          <div class="sub">chance of winning</div>
+        </div>
+        <div class="aoi-outcome" id="aoi-out-B">
+          <div class="tag">Outcome</div>
+          <div class="val" id="val-oB">$4</div>
+          <div class="sub">if you win</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="trial-inst">Click the option you prefer</div>
+</div>
+
+<!-- ─── RESULTS ─── -->
+<div id="screen-results" class="screen">
+  <h2 class="results-title">Your Gaze Profile</h2>
+  <p class="results-sub">Here's where your eyes went before each decision.</p>
+  <div class="results-grid">
+    <div class="rcard">
+      <h3>Attention Split</h3>
+      <div class="bar-labels">
+        <span style="color:#3ecfb2">Probability <span id="pct-prob">—</span></span>
+        <span style="color:#e8a020">Outcome <span id="pct-out">—</span></span>
+      </div>
+      <div class="att-bar">
+        <div class="fill-prob" id="bar-prob" style="width:0%"></div>
+        <div class="fill-out"  id="bar-out"  style="width:0%"></div>
+      </div>
+      <div style="margin-top:14px">
+        <div class="stat-row"><span class="stat-lbl">Prob fixations</span><span class="stat-val" style="color:#3ecfb2" id="fix-prob">—</span></div>
+        <div class="stat-row"><span class="stat-lbl">Outcome fixations</span><span class="stat-val" style="color:#e8a020" id="fix-out">—</span></div>
+        <div class="stat-row"><span class="stat-lbl">Interpretation</span><span class="stat-val" style="color:#e8f54e" id="att-label">—</span></div>
+      </div>
+    </div>
+    <div class="rcard">
+      <h3>Choice Behavior</h3>
+      <div class="stat-row"><span class="stat-lbl">Risky choices (A)</span><span class="stat-val" style="color:#e8f54e" id="risky-n">—</span></div>
+      <div class="stat-row"><span class="stat-lbl">Safe choices (B)</span><span class="stat-val" style="color:#e8f54e" id="safe-n">—</span></div>
+      <div class="stat-row"><span class="stat-lbl">Avg decision time</span><span class="stat-val" style="color:#e8f54e" id="avg-rt">—</span></div>
+      <div class="stat-row"><span class="stat-lbl">Risk preference</span><span class="stat-val" style="color:#e8f54e" id="risk-lbl">—</span></div>
+    </div>
+  </div>
+  <div class="rcard" style="margin-bottom:0">
+    <h3>Trial-by-Trial Data</h3>
+    <table class="trial-table">
+      <thead><tr><th>#</th><th>Option A</th><th>Option B</th><th>Choice</th><th>RT (ms)</th><th>Prob fix.</th><th>Out fix.</th><th>Dominant AOI</th></tr></thead>
+      <tbody id="result-tbody"></tbody>
+    </table>
+  </div>
+  <div class="results-actions">
+    <button class="btn btn-primary" onclick="downloadCSV()">↓ Download CSV</button>
+    <button class="btn btn-ghost" onclick="location.reload()">↺ Restart</button>
+  </div>
+</div>
+
+<!-- ✅ Classic WebGazer — same CDN as the working demo -->
+<script src="https://webgazer.cs.brown.edu/webgazer.js?version=2.0.1"></script>
+<script>
+// ═══════════════════════════════════════
+//  TRIALS
+// ═══════════════════════════════════════
+const TRIALS = [
+  { pA:50,  oA:10, pB:100, oB:4  },
+  { pA:20,  oA:25, pB:100, oB:3  },
+  { pA:80,  oA:8,  pB:100, oB:5  },
+  { pA:10,  oA:60, pB:100, oB:4  },
+  { pA:50,  oA:20, pB:100, oB:8  },
+  { pA:30,  oA:30, pB:100, oB:6  },
+  { pA:70,  oA:12, pB:100, oB:7  },
+  { pA:40,  oA:15, pB:100, oB:5  },
+  { pA:60,  oA:10, pB:100, oB:4  },
+  { pA:25,  oA:40, pB:100, oB:7  },
+  { pA:90,  oA:9,  pB:100, oB:7  },
+  { pA:5,   oA:80, pB:100, oB:2  },
+];
+
+// ═══════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════
+let currentTrial = 0;
+let trialData = [];
+let gazeSamples = [];
+let trialStartTime = null;
+let calibClicked = 0;
+
+// ═══════════════════════════════════════
+//  SCREENS
+// ═══════════════════════════════════════
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ═══════════════════════════════════════
+//  CALIBRATION
+// ═══════════════════════════════════════
+function startCalibration() {
+  show('screen-calib');
+  buildDots();
+  initWebGazer();
+}
+
+function buildDots() {
+  const area = document.getElementById('calib-area');
+  area.innerHTML = '';
+  const CLICKS_PER_DOT = 3;
+  [[10,10],[50,10],[90,10],[10,50],[50,50],[90,50],[10,90],[50,90],[90,90]].forEach(([x,y]) => {
+    const d = document.createElement('div');
+    d.className = 'cdot';
+    d.style.left = x + '%';
+    d.style.top  = y + '%';
+    d.style.fontSize = '10px';
+    d.style.color = '#e8f54e';
+    d.style.display = 'flex';
+    d.style.alignItems = 'center';
+    d.style.justifyContent = 'center';
+    d.textContent = CLICKS_PER_DOT;
+    let clicks = 0;
+    d.addEventListener('click', () => {
+      if (d.classList.contains('done')) return;
+      clicks++;
+      d.style.transform = 'translate(-50%,-50%) scale(1.5)';
+      setTimeout(() => d.style.transform = 'translate(-50%,-50%)', 150);
+      const remaining = CLICKS_PER_DOT - clicks;
+      if (remaining > 0) {
+        d.textContent = remaining;
+      } else {
+        d.textContent = '';
+        d.classList.add('done');
+        calibClicked++;
+        document.getElementById('calib-count').textContent = calibClicked;
+        if (calibClicked >= 9) document.getElementById('btn-start').disabled = false;
+      }
+    });
+    area.appendChild(d);
+  });
+}
+
+function initWebGazer() {
+  webgazer.setRegression('ridge');
+  webgazer.setTracker('TFFaceMesh');  // use TF.js tracker, not MediaPipe
+  webgazer.applyKalmanFilter(true);
+  webgazer.setGazeListener(function(data) {
+    if (!data) return;
+    if (trialStartTime !== null) {
+      gazeSamples.push({ x: data.x, y: data.y, t: Date.now() - trialStartTime });
+    }
+  }).begin();
+  webgazer.showPredictionPoints(true);
+}
+
+// ═══════════════════════════════════════
+//  TRIALS
+// ═══════════════════════════════════════
+function beginTrials() {
+  // Brief accuracy check — show a centre dot and tell user to look at it
+  show('screen-fixation');
+  setTimeout(() => {
+    currentTrial = 0;
+    trialData = [];
+    runTrial();
+  }, 1500);
+}
+
+function runTrial() {
+  if (currentTrial >= TRIALS.length) { showResults(); return; }
+  show('screen-fixation');
+  setTimeout(() => {
+    const t = TRIALS[currentTrial];
+    document.getElementById('trial-num').textContent = currentTrial + 1;
+    document.getElementById('val-pA').textContent = t.pA + '%';
+    document.getElementById('val-oA').textContent = '$' + t.oA;
+    document.getElementById('val-pB').textContent = t.pB + '%';
+    document.getElementById('val-oB').textContent = '$' + t.oB;
+    gazeSamples = [];
+    trialStartTime = Date.now();
+    show('screen-trial');
+  }, 800);
+}
+
+function recordChoice(choice) {
+  const rt = Date.now() - trialStartTime;
+  trialStartTime = null;
+  const t = TRIALS[currentTrial];
+
+  // Classify gaze samples into AOIs
+  const ids = ['aoi-prob-A','aoi-out-A','aoi-prob-B','aoi-out-B'];
+  const rects = {};
+  ids.forEach(id => { rects[id] = document.getElementById(id).getBoundingClientRect(); });
+
+  let probFix = 0, outFix = 0;
+  gazeSamples.forEach(g => {
+    const inProbA = inRect(g, rects['aoi-prob-A']);
+    const inOutA  = inRect(g, rects['aoi-out-A']);
+    const inProbB = inRect(g, rects['aoi-prob-B']);
+    const inOutB  = inRect(g, rects['aoi-out-B']);
+    if (inProbA || inProbB) probFix++;
+    else if (inOutA || inOutB) outFix++;
+  });
+
+  trialData.push({ trial: currentTrial+1, pA:t.pA, oA:t.oA, pB:t.pB, oB:t.oB, choice, rt, probFix, outFix, dom: probFix >= outFix ? 'probability' : 'outcome' });
+  currentTrial++;
+  gazeSamples = [];
+  runTrial();
+}
+
+function inRect(g, r) {
+  return g.x >= r.left && g.x <= r.right && g.y >= r.top && g.y <= r.bottom;
+}
+
+// ═══════════════════════════════════════
+//  RESULTS
+// ═══════════════════════════════════════
+function showResults() {
+  webgazer.showPredictionPoints(false);
+
+  const totalProb = trialData.reduce((a,t) => a + t.probFix, 0);
+  const totalOut  = trialData.reduce((a,t) => a + t.outFix,  0);
+  const total = totalProb + totalOut || 1;
+  const probPct = Math.round(totalProb / total * 100);
+  const outPct  = 100 - probPct;
+  const risky   = trialData.filter(t => t.choice === 'A').length;
+  const avgRT   = Math.round(trialData.reduce((a,t) => a + t.rt, 0) / trialData.length);
+
+  document.getElementById('pct-prob').textContent = probPct + '%';
+  document.getElementById('pct-out').textContent  = outPct  + '%';
+  setTimeout(() => {
+    document.getElementById('bar-prob').style.width = probPct + '%';
+    document.getElementById('bar-out').style.width  = outPct  + '%';
+  }, 100);
+  document.getElementById('fix-prob').textContent  = totalProb + ' samples';
+  document.getElementById('fix-out').textContent   = totalOut  + ' samples';
+  document.getElementById('att-label').textContent = probPct > outPct ? 'Probability-focused' : 'Outcome-focused';
+  document.getElementById('risky-n').textContent   = risky + ' / ' + TRIALS.length;
+  document.getElementById('safe-n').textContent    = (TRIALS.length - risky) + ' / ' + TRIALS.length;
+  document.getElementById('avg-rt').textContent    = avgRT + ' ms';
+  document.getElementById('risk-lbl').textContent  = risky > TRIALS.length/2 ? 'Risk-seeking' : risky < TRIALS.length/2 ? 'Risk-averse' : 'Risk-neutral';
+
+  const tbody = document.getElementById('result-tbody');
+  tbody.innerHTML = '';
+  trialData.forEach(t => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-family:monospace;color:#555">${t.trial}</td>
+      <td>${t.pA}% → $${t.oA}</td>
+      <td>${t.pB}% → $${t.oB}</td>
+      <td><span class="pill ${t.choice==='A'?'pill-a':'pill-b'}">${t.choice}</span></td>
+      <td style="font-family:monospace">${t.rt}</td>
+      <td><span class="pill pill-a">${t.probFix}</span></td>
+      <td><span class="pill pill-b">${t.outFix}</span></td>
+      <td style="color:${t.dom==='probability'?'#3ecfb2':'#e8a020'};font-size:11px">${t.dom}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  show('screen-results');
+}
+
+// ═══════════════════════════════════════
+//  CSV EXPORT
+// ═══════════════════════════════════════
+function downloadCSV() {
+  const hdr = ['trial','prob_A','outcome_A','prob_B','outcome_B','choice','rt_ms','prob_fixations','outcome_fixations','dominant_aoi'];
+  const rows = trialData.map(t => [t.trial,t.pA,t.oA,t.pB,t.oB,t.choice,t.rt,t.probFix,t.outFix,t.dom]);
+  const csv = [hdr,...rows].map(r => r.join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download = 'eye_tracking_data.csv';
+  a.click();
+}
+</script>
+</body>
+</html>
